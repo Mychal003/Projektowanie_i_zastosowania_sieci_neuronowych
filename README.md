@@ -1,4 +1,4 @@
-projekt-akcje/
+# projekt-akcje/
 ├── data/
 │   ├── raw/                # Surowe dane pobrane z giełdy
 │   └── processed/          # Dane po wstępnym przetworzeniu
