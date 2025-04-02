@@ -1,0 +1,1 @@
+'''Definicja architektury sieci neuronowej'''
