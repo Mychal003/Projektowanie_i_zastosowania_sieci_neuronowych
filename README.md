@@ -43,8 +43,28 @@ git clone https://github.com/Mychal003/Projektowanie_i_zastosowania_sieci_neuron
 cd Projektowanie_i_zastosowania_sieci_neuronowych
 ```
 
-2. Zainstaluj wymagane biblioteki:
+## Instalacja
+
+1. Sklonuj repozytorium:
+```bash
+git clone https://github.com/Mychal003/Projektowanie_i_zastosowania_sieci_neuronowych.git
+cd Projektowanie_i_zastosowania_sieci_neuronowych
 ```
+
+2. Stwórz i aktywuj wirtualne środowisko:
+```bash
+# Utworzenie wirtualnego środowiska
+python -m venv venv
+
+# Aktywacja dla systemów Unix/macOS
+source venv/bin/activate
+
+# Aktywacja dla systemów Windows
+venv\Scripts\activate
+```
+
+3. Zainstaluj wymagane biblioteki:
+```bash
 pip install -r requirements.txt
 ```
 
