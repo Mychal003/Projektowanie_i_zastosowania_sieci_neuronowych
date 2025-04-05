@@ -1,0 +1,83 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Logs and coverage reports
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+
+# Environment files
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# IDE-specific files (PyCharm, VSCode, Sublime Text)
+.idea/
+.vscode/*
+*.sublime-workspace
+
+# macOS-specific files
+.DS_Store
+
+# Windows-specific files
+Thumbs.db
+
+# Python virtual environments managed by pyenv or pyflow
+.python-version
+__pypackages__/
+
+# PyBuilder output directory
+target/
+
+# Ignore specific tools or frameworks (e.g., Spyder, Rope)
+.spyderproject
+.ropeproject
+
+# Temporary files and backups
+*.tmp
+*.bak
+*.swp
+
+# Additional editor-specific configurations (optional)
+.history
+
+cleaned_data.csv
+raw.csv
