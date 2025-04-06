@@ -1,1 +1,7 @@
 '''Lista bibliotek potrzebnych do uruchomienia projektu'''
+torch
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
