@@ -14,10 +14,10 @@ def create_directories():
     Tworzy niezbędne katalogi dla projektu, jeśli nie istnieją.
     """
     dirs = [
-        'data/raw',
-        'data/processed',
-        'models/lstm',
-        'models/cnn'
+        './data/raw',
+        './data/processed',
+        './models/lstm',
+        './models/cnn'
     ]
     
     for directory in dirs:

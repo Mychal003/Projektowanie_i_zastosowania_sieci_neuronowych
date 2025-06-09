@@ -7,7 +7,7 @@ def fix_multiindex_csv():
     """Napraw plik CSV z MultiIndex"""
     
     # Ścieżka do pliku
-    base_path = r"C:\Users\pawli\Desktop\sieci\Projektowanie_i_zastosowania_sieci_neuronowych"
+    base_path = r"notebooks"
     input_path = os.path.join(base_path, "data", "processed", "cleaned_data.csv")
     
     print("Naprawiam format danych...")
@@ -94,7 +94,7 @@ def alternative_download():
     df = df[['Date', 'Open', 'High', 'Low', 'Close/Last', 'Volume']]
     
     # Zapisz
-    base_path = r"C:\Users\pawli\Desktop\sieci\Projektowanie_i_zastosowania_sieci_neuronowych"
+    base_path = r"notebooks"
     output_path = os.path.join(base_path, "data", "processed", "cleaned_data.csv")
     
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

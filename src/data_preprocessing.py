@@ -2,8 +2,8 @@ import pandas as pd
 import os
 
 def preprocess():
-    input_path = "C:\\Users\\pawli\\Desktop\\sieci\\Projektowanie_i_zastosowania_sieci_neuronowych\\data\\raw\\AAPL_yahoo.csv" ## TRZEBA TO POPRAWIC
-    output_dir = "C:\\Users\\pawli\\OneDrive\\Pulpit\\Projekt_sieci\\data\\processed"
+    input_path = "notebooks\\data\\raw\\AAPL_yahoo.csv" ## TRZEBA TO POPRAWIC
+    output_dir = "notebooks\\data\\processed"
     output_path = os.path.join(output_dir, "cleaned_data.csv")
 
     # Wczytanie danych
