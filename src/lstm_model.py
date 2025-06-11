@@ -1,15 +1,17 @@
-'''Definicja architektury sieci LSTM'''
+"""Model LSTM dla prognozowania szeregów czasowych"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from typing import Tuple, Optional, List, Dict, Any
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from typing import Dict, List, Tuple, Optional, Union, Any
+
 
 class TimeSeriesDataset(Dataset):
-    """
-    Dataset do przygotowania danych dla modelu LSTM.
-    """
+    """Dataset dla danych szeregów czasowych."""
     def __init__(self, X: np.ndarray, y: np.ndarray):
         self.X = torch.tensor(X, dtype=torch.float32)
         self.y = torch.tensor(y, dtype=torch.float32)
@@ -20,111 +22,56 @@ class TimeSeriesDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.X[idx], self.y[idx]
 
+
 class LSTMModel(nn.Module):
-    """
-    Model sieci neuronowej LSTM do przewidywania cen akcji.
-    """
+    """Model LSTM dla prognozowania szeregów czasowych."""
     def __init__(self, 
                  input_size: int, 
-                 hidden_size: int, 
-                 num_layers: int, 
-                 output_size: int, 
+                 hidden_size: int = 64, 
+                 num_layers: int = 2, 
+                 output_size: int = 1,
                  dropout: float = 0.2):
-        """
-        Inicjalizacja modelu LSTM.
-        
-        Args:
-            input_size: Liczba cech wejściowych (liczba zmiennych)
-            hidden_size: Rozmiar warstw ukrytych LSTM
-            num_layers: Liczba warstw LSTM
-            output_size: Rozmiar wyjścia (np. 1 dla przewidywania jednej wartości)
-            dropout: Współczynnik dropout (domyślnie 0.2)
-        """
         super(LSTMModel, self).__init__()
         
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         
-        # Warstwa LSTM
-        self.lstm = nn.LSTM(input_size=input_size,
-                          hidden_size=hidden_size,
-                          num_layers=num_layers,
-                          batch_first=True,
-                          dropout=dropout if num_layers > 1 else 0)
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0
+        )
         
-        # Warstwa liniowa do predykcji
         self.fc = nn.Linear(hidden_size, output_size)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass modelu LSTM.
-        
-        Args:
-            x: Tensor wejściowy o kształcie [batch_size, seq_length, input_size]
-            
-        Returns:
-            Tensor wyjściowy o kształcie [batch_size, output_size]
-        """
-        # Inicjalizacja stanu ukrytego
-        batch_size = x.size(0)
-        device = x.device
-        
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
-        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(device)
-        
-        # Forward pass przez LSTM
-        out, _ = self.lstm(x, (h0, c0))
-        
-        # Bierzemy tylko ostatni krok sekwencji
-        out = out[:, -1, :]
-        
-        # Predykcja przez warstwę liniową
-        out = self.fc(out)
-        
-        return out
+        lstm_out, (h_n, c_n) = self.lstm(x)
+        last_output = lstm_out[:, -1, :]
+        output = self.fc(last_output)
+        return output
+
 
 class LSTMTrainer:
-    """
-    Klasa do trenowania i ewaluacji modelu LSTM.
-    """
+    """Klasa do trenowania modelu LSTM."""
     def __init__(self, 
-                 model: LSTMModel, 
-                 learning_rate: float = 0.001, 
+                 model: nn.Module,
+                 learning_rate: float = 0.001,
                  weight_decay: float = 1e-5,
                  device: Optional[str] = None):
-        """
-        Inicjalizacja trenera modelu.
-        
-        Args:
-            model: Model LSTM do trenowania
-            learning_rate: Szybkość uczenia (domyślnie 0.001)
-            weight_decay: Współczynnik regularyzacji L2 (domyślnie 1e-5)
-            device: Urządzenie do obliczeń ('cuda' lub 'cpu'), jeśli None to automatycznie wykrywa
-        """
-        if device is None:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        else:
-            self.device = torch.device(device)
-            
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = model.to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), 
-                                   lr=learning_rate, 
-                                   weight_decay=weight_decay)
-        
+        self.optimizer = optim.Adam(
+            self.model.parameters(), 
+            lr=learning_rate,
+            weight_decay=weight_decay
+        )
         self.train_losses = []
         self.val_losses = []
         
     def train_epoch(self, train_loader: DataLoader) -> float:
-        """
-        Trenowanie modelu przez jedną epokę.
-        
-        Args:
-            train_loader: DataLoader z danymi treningowymi
-            
-        Returns:
-            Średnia strata na epoce
-        """
         self.model.train()
         total_loss = 0
         
@@ -132,12 +79,9 @@ class LSTMTrainer:
             X_batch = X_batch.to(self.device)
             y_batch = y_batch.to(self.device)
             
-            # Forward pass
+            self.optimizer.zero_grad()
             y_pred = self.model(X_batch)
             loss = self.criterion(y_pred, y_batch)
-            
-            # Backpropagation
-            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             
@@ -146,15 +90,6 @@ class LSTMTrainer:
         return total_loss / len(train_loader)
     
     def validate(self, val_loader: DataLoader) -> float:
-        """
-        Walidacja modelu.
-        
-        Args:
-            val_loader: DataLoader z danymi walidacyjnymi
-            
-        Returns:
-            Średnia strata na walidacji
-        """
         self.model.eval()
         total_loss = 0
         
@@ -165,7 +100,6 @@ class LSTMTrainer:
                 
                 y_pred = self.model(X_batch)
                 loss = self.criterion(y_pred, y_batch)
-                
                 total_loss += loss.item()
                 
         return total_loss / len(val_loader)
@@ -173,22 +107,10 @@ class LSTMTrainer:
     def fit(self, 
             train_loader: DataLoader, 
             val_loader: DataLoader, 
-            epochs: int, 
-            early_stopping_patience: int = 10,
+            epochs: int = 100,
+            early_stopping_patience: int = 15,
             verbose: bool = True) -> Dict[str, List[float]]:
-        """
-        Trenowanie modelu przez określoną liczbę epok z opcją early stopping.
         
-        Args:
-            train_loader: DataLoader z danymi treningowymi
-            val_loader: DataLoader z danymi walidacyjnymi
-            epochs: Liczba epok
-            early_stopping_patience: Liczba epok bez poprawy przed zatrzymaniem
-            verbose: Czy wyświetlać postęp treningu
-            
-        Returns:
-            Słownik z historią treningu
-        """
         best_val_loss = float('inf')
         epochs_without_improvement = 0
         
@@ -199,15 +121,14 @@ class LSTMTrainer:
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
             
-            if verbose:
-                print(f'Epoka {epoch+1}/{epochs}, Strata treningowa: {train_loss:.6f}, Strata walidacyjna: {val_loss:.6f}')
-                
-            # Early stopping
+            if verbose and epoch % 10 == 0:
+                print(f'Epoka {epoch+1}/{epochs}, '
+                      f'Strata treningowa: {train_loss:.6f}, '
+                      f'Strata walidacyjna: {val_loss:.6f}')
+            
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 epochs_without_improvement = 0
-                # Zapisujemy najlepszy model
-                torch.save(self.model.state_dict(), 'models/lstm/best_model.pth')
             else:
                 epochs_without_improvement += 1
                 
@@ -216,24 +137,12 @@ class LSTMTrainer:
                     print(f'Early stopping po {epoch+1} epokach')
                 break
                 
-        # Ładujemy najlepszy model
-        self.model.load_state_dict(torch.load('models/lstm/best_model.pth'))
-        
         return {
             'train_loss': self.train_losses,
             'val_loss': self.val_losses
         }
     
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """
-        Wykonuje predykcję modelu na nowych danych.
-        
-        Args:
-            X: Dane wejściowe jako numpy array
-            
-        Returns:
-            Predykcje jako numpy array
-        """
         self.model.eval()
         X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
         
@@ -241,76 +150,19 @@ class LSTMTrainer:
             predictions = self.model(X_tensor)
             
         return predictions.cpu().numpy()
-    
-    def evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> Dict[str, float]:
-        """
-        Ewaluacja modelu na danych testowych.
-        
-        Args:
-            X_test: Dane testowe
-            y_test: Etykiety testowe
-            
-        Returns:
-            Słownik z metrykami
-        """
-        y_pred = self.predict(X_test)
-        mse = np.mean((y_pred - y_test) ** 2)
-        mae = np.mean(np.abs(y_pred - y_test))
-        rmse = np.sqrt(mse)
-        
-        return {
-            'mse': mse,
-            'mae': mae,
-            'rmse': rmse
-        }
 
-def create_sequence_data(data: np.ndarray, seq_length: int) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Tworzy sekwencje danych dla modelu LSTM.
-    
-    Args:
-        data: Dane wejściowe
-        seq_length: Długość sekwencji
-        
-    Returns:
-        Tuple (X, y) gdzie X to sekwencje danych, a y to odpowiadające etykiety
-    """
-    X, y = [], []
-    
-    for i in range(len(data) - seq_length):
-        X.append(data[i:i+seq_length])
-        y.append(data[i+seq_length])
-    
-    return np.array(X), np.array(y)
 
-def prepare_data_for_lstm(df, 
-                          feature_cols, 
-                          target_col, 
-                          seq_length, 
-                          test_size=0.2, 
-                          val_size=0.1,
-                          batch_size=32, 
-                          shuffle=True) -> Dict[str, Any]:
-    """
-    Przygotowuje dane do trenowania modelu LSTM.
+def prepare_data_for_lstm(df: pd.DataFrame,
+                         feature_cols: List[str],
+                         target_col: str,
+                         seq_length: int = 20,
+                         test_size: float = 0.2,
+                         val_size: float = 0.1,
+                         batch_size: int = 32,
+                         shuffle: bool = False) -> Dict[str, Any]:
+    """Przygotowanie danych do modelu LSTM."""
     
-    Args:
-        df: DataFrame z danymi
-        feature_cols: Lista kolumn cech
-        target_col: Nazwa kolumny celu
-        seq_length: Długość sekwencji
-        test_size: Proporcja danych testowych
-        val_size: Proporcja danych walidacyjnych
-        batch_size: Rozmiar batcha
-        shuffle: Czy mieszać dane
-        
-    Returns:
-        Słownik z przygotowanymi DataLoaderami i metadanymi
-    """
-    from sklearn.preprocessing import MinMaxScaler
-    from sklearn.model_selection import train_test_split
-    
-    # Przygotowanie danych
+    # Przygotuj features i target
     features = df[feature_cols].values
     target = df[target_col].values.reshape(-1, 1)
     
@@ -322,24 +174,337 @@ def prepare_data_for_lstm(df,
     target_scaled = target_scaler.fit_transform(target)
     
     # Tworzenie sekwencji
-    X, y = create_sequence_data(features_scaled, seq_length)
-    y_target = target_scaled[seq_length:]
+    X, y = [], []
+    for i in range(seq_length, len(features_scaled)):
+        X.append(features_scaled[i-seq_length:i])
+        y.append(target_scaled[i])
     
-    # Podział na zbiory treningowy, walidacyjny i testowy
-    X_temp, X_test, y_temp, y_test = train_test_split(X, y_target, test_size=test_size, shuffle=False)
+    X = np.array(X)
+    y = np.array(y)
     
-    if val_size > 0:
-        val_size_adjusted = val_size / (1 - test_size)  # Korekta proporcji
-        X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=val_size_adjusted, shuffle=False)
-    else:
-        X_train, X_val, y_train, y_val = X_temp, np.empty((0, X_temp.shape[1], X_temp.shape[2])), y_temp, np.empty((0, 1))
+    # Podział chronologiczny
+    train_size = int(len(X) * (1 - test_size - val_size))
+    val_size = int(len(X) * val_size)
     
-    # Tworzenie DataLoaderów
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+    
+    X_val = X[train_size:train_size + val_size]
+    y_val = y[train_size:train_size + val_size]
+    
+    X_test = X[train_size + val_size:]
+    y_test = y[train_size + val_size:]
+    
+    # DataLoaders
+    train_dataset = TimeSeriesDataset(X_train, y_train)
+    val_dataset = TimeSeriesDataset(X_val, y_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    
+    return {
+        'train_loader': train_loader,
+        'val_loader': val_loader,
+        'X_train': X_train,
+        'X_val': X_val,
+        'X_test': X_test,
+        'y_train': y_train,
+        'y_val': y_val,
+        'y_test': y_test,
+        'feature_scaler': feature_scaler,
+        'target_scaler': target_scaler,
+        'input_size': len(feature_cols)
+    }
+
+
+# Dodatkowe klasy z improved_lstm_model.py które mogą być potrzebne
+class ImprovedLSTMModel(nn.Module):
+    """Ulepszona architektura LSTM z dodatkową normalizacją."""
+    def __init__(self, 
+                 input_size: int, 
+                 hidden_size: int = 128,
+                 num_layers: int = 3,
+                 output_size: int = 1,
+                 dropout: float = 0.3):
+        super(ImprovedLSTMModel, self).__init__()
+        
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        
+        # Bidirectional LSTM dla lepszego kontekstu
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0,
+            bidirectional=True
+        )
+        
+        # Warstwa normalizacji
+        self.batch_norm = nn.BatchNorm1d(hidden_size * 2)
+        
+        # Głębsza sieć fully connected
+        self.fc1 = nn.Linear(hidden_size * 2, hidden_size)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size = x.size(0)
+        
+        # LSTM forward pass
+        lstm_out, _ = self.lstm(x)
+        
+        # Bierzemy ostatni output (z obu kierunków)
+        last_output = lstm_out[:, -1, :]
+        
+        # Normalizacja batch (jeśli batch_size > 1)
+        if batch_size > 1:
+            last_output = self.batch_norm(last_output)
+        
+        # Fully connected layers
+        out = self.fc1(last_output)
+        out = self.relu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        
+        return out
+
+
+class ImprovedLSTMTrainer:
+    """Ulepszona klasa trenera z lepszymi strategiami optymalizacji."""
+    def __init__(self, 
+                 model: nn.Module,
+                 learning_rate: float = 0.0005,
+                 device: Optional[str] = None):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = model.to(self.device)
+        
+        # Huber Loss zamiast MSE - mniej wrażliwy na wartości odstające
+        self.criterion = nn.HuberLoss(delta=1.0)
+        
+        # AdamW z lepszą regularyzacją
+        self.optimizer = optim.AdamW(
+            self.model.parameters(), 
+            lr=learning_rate,
+            weight_decay=0.01
+        )
+        
+        # Learning rate scheduler
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, 
+            mode='min',
+            factor=0.5,
+            patience=5,
+            verbose=True
+        )
+        
+        self.train_losses = []
+        self.val_losses = []
+        
+    def train_epoch(self, train_loader: DataLoader) -> float:
+        self.model.train()
+        total_loss = 0
+        
+        for X_batch, y_batch in train_loader:
+            X_batch = X_batch.to(self.device)
+            y_batch = y_batch.to(self.device)
+            
+            self.optimizer.zero_grad()
+            y_pred = self.model(X_batch)
+            loss = self.criterion(y_pred, y_batch)
+            
+            # Gradient clipping
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            
+            self.optimizer.step()
+            total_loss += loss.item()
+            
+        return total_loss / len(train_loader)
+    
+    def validate(self, val_loader: DataLoader) -> float:
+        self.model.eval()
+        total_loss = 0
+        
+        with torch.no_grad():
+            for X_batch, y_batch in val_loader:
+                X_batch = X_batch.to(self.device)
+                y_batch = y_batch.to(self.device)
+                
+                y_pred = self.model(X_batch)
+                loss = self.criterion(y_pred, y_batch)
+                total_loss += loss.item()
+                
+        return total_loss / len(val_loader)
+    
+    def fit(self, 
+            train_loader: DataLoader, 
+            val_loader: DataLoader, 
+            epochs: int = 150,
+            early_stopping_patience: int = 20,
+            verbose: bool = True) -> Dict[str, List[float]]:
+        
+        best_val_loss = float('inf')
+        epochs_without_improvement = 0
+        best_model_state = None
+        
+        for epoch in range(epochs):
+            train_loss = self.train_epoch(train_loader)
+            val_loss = self.validate(val_loader)
+            
+            self.train_losses.append(train_loss)
+            self.val_losses.append(val_loss)
+            
+            # Scheduler step
+            self.scheduler.step(val_loss)
+            
+            if verbose and epoch % 10 == 0:
+                print(f'Epoka {epoch+1}/{epochs}, '
+                      f'Strata treningowa: {train_loss:.6f}, '
+                      f'Strata walidacyjna: {val_loss:.6f}')
+            
+            # Early stopping z zapisem najlepszego modelu
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_without_improvement = 0
+                best_model_state = self.model.state_dict().copy()
+            else:
+                epochs_without_improvement += 1
+                
+            if epochs_without_improvement >= early_stopping_patience:
+                if verbose:
+                    print(f'Early stopping po {epoch+1} epokach')
+                break
+        
+        # Przywróć najlepszy model
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+            
+        return {
+            'train_loss': self.train_losses,
+            'val_loss': self.val_losses
+        }
+    
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        self.model.eval()
+        X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+        
+        with torch.no_grad():
+            predictions = self.model(X_tensor)
+            
+        return predictions.cpu().numpy()
+
+
+def create_advanced_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Tworzy zaawansowane cechy techniczne."""
+    df = df.copy()
+    
+    # Podstawowe cechy techniczne
+    df['Returns'] = df['Close/Last'].pct_change()
+    df['Log_Returns'] = np.log(df['Close/Last'] / df['Close/Last'].shift(1))
+    
+    # Średnie kroczące
+    for window in [5, 10, 20]:
+        df[f'MA_{window}'] = df['Close/Last'].rolling(window=window).mean()
+        df[f'MA_ratio_{window}'] = df['Close/Last'] / df[f'MA_{window}']
+    
+    # Volatility (odchylenie standardowe zwrotów)
+    df['Volatility'] = df['Returns'].rolling(window=20).std()
+    
+    # RSI (Relative Strength Index)
+    def calculate_rsi(data, window=14):
+        delta = data.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+    
+    df['RSI'] = calculate_rsi(df['Close/Last'])
+    
+    # Bollinger Bands
+    df['BB_middle'] = df['Close/Last'].rolling(window=20).mean()
+    bb_std = df['Close/Last'].rolling(window=20).std()
+    df['BB_upper'] = df['BB_middle'] + 2 * bb_std
+    df['BB_lower'] = df['BB_middle'] - 2 * bb_std
+    df['BB_position'] = (df['Close/Last'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
+    
+    # Volume indicators
+    df['Volume_MA'] = df['Volume'].rolling(window=10).mean()
+    df['Volume_ratio'] = df['Volume'] / df['Volume_MA']
+    
+    # Price position within day's range
+    df['Price_position'] = (df['Close/Last'] - df['Low']) / (df['High'] - df['Low'])
+    
+    # Usuń wiersze z NaN
+    df = df.dropna()
+    
+    return df
+
+
+def prepare_lstm_data_improved(df: pd.DataFrame,
+                              seq_length: int = 30,
+                              target_days: int = 1,
+                              test_size: float = 0.2,
+                              val_size: float = 0.1,
+                              batch_size: int = 64) -> Dict[str, Any]:
+    """Ulepszona funkcja przygotowania danych."""
+    
+    # Dodaj zaawansowane cechy
+    df = create_advanced_features(df)
+    
+    # Wybierz cechy do modelu
+    feature_cols = [
+        'Open', 'High', 'Low', 'Close/Last', 'Volume',
+        'Returns', 'MA_5', 'MA_10', 'MA_20',
+        'MA_ratio_5', 'MA_ratio_10', 'MA_ratio_20',
+        'Volatility', 'RSI', 'BB_position',
+        'Volume_ratio', 'Price_position'
+    ]
+    
+    # Przygotuj dane
+    features = df[feature_cols].values
+    target = df['Close/Last'].values
+    
+    # Normalizacja
+    from sklearn.preprocessing import RobustScaler
+    
+    feature_scaler = RobustScaler()
+    target_scaler = MinMaxScaler()
+    
+    features_scaled = feature_scaler.fit_transform(features)
+    target_scaled = target_scaler.fit_transform(target.reshape(-1, 1))
+    
+    # Tworzenie sekwencji
+    X, y = [], []
+    for i in range(seq_length, len(features_scaled) - target_days + 1):
+        X.append(features_scaled[i-seq_length:i])
+        y.append(target_scaled[i + target_days - 1])
+    
+    X = np.array(X)
+    y = np.array(y)
+    
+    # Podział chronologiczny
+    train_size = int(len(X) * (1 - test_size - val_size))
+    val_size = int(len(X) * val_size)
+    
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+    
+    X_val = X[train_size:train_size + val_size]
+    y_val = y[train_size:train_size + val_size]
+    
+    X_test = X[train_size + val_size:]
+    y_test = y[train_size + val_size:]
+    
+    # DataLoaders
     train_dataset = TimeSeriesDataset(X_train, y_train)
     val_dataset = TimeSeriesDataset(X_val, y_val)
     test_dataset = TimeSeriesDataset(X_test, y_test)
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
@@ -347,13 +512,14 @@ def prepare_data_for_lstm(df,
         'train_loader': train_loader,
         'val_loader': val_loader,
         'test_loader': test_loader,
-        'feature_scaler': feature_scaler,
-        'target_scaler': target_scaler,
         'X_train': X_train,
         'X_val': X_val,
         'X_test': X_test,
         'y_train': y_train,
         'y_val': y_val,
         'y_test': y_test,
-        'input_size': X_train.shape[2]  # Liczba cech wejściowych
+        'feature_scaler': feature_scaler,
+        'target_scaler': target_scaler,
+        'input_size': len(feature_cols),
+        'feature_names': feature_cols
     }
