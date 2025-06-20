@@ -202,6 +202,13 @@ class ModelAnalyzer:
 
         # Dokładność kierunkowa
         def directional_accuracy(y_true, y_pred):
+            y_true = np.array(y_true).flatten()
+            y_pred = np.array(y_pred).flatten()
+            mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+            y_true = y_true[mask]
+            y_pred = y_pred[mask]
+            if len(y_true) <= 1:  # nie da się policzyć różnicy
+                return np.nan
             return np.mean((np.diff(y_true) > 0) == (np.diff(y_pred) > 0))
 
         train_dir = directional_accuracy(self.y_train_real, self.y_train_pred)
