@@ -7,6 +7,9 @@ from typing import Dict, List, Optional
 import numpy as np
 import os
 from src.utils import evaluate_model, print_metrics
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import cnn_analysis2
+import cnn_model_improvedv2
 
 class CNNTrainerImproved:
     def __init__(self, model: nn.Module, learning_rate: float = 0.001,
@@ -44,7 +47,7 @@ class CNNTrainerImproved:
 
     def fit(self, train_loader: DataLoader, val_loader: DataLoader,
             epochs: int = 100, early_stopping_patience: int = 10,
-            save_path: str = 'models/cnn/best_model.pth', verbose: bool = True) -> Dict[str, List[float]]:
+            save_path: str = '../notebooks/models/cnn/best_model.pth', verbose: bool = True) -> Dict[str, List[float]]:
         best_val_loss = float('inf')
         patience = 0
         for epoch in range(epochs):
