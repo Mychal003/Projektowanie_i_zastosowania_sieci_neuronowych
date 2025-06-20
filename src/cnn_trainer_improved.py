@@ -13,11 +13,12 @@ import cnn_model_improvedv2
 
 class CNNTrainerImproved:
     def __init__(self, model: nn.Module, learning_rate: float = 0.001,
-                 weight_decay: float = 1e-5, device: Optional[str] = None):
+                 weight_decay: float = 1e-3, device: Optional[str] = None):
         self.device = torch.device(device if device else ('cuda' if torch.cuda.is_available() else 'cpu'))
         self.model = model.to(self.device)
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, patience=3,  factor=0.5)
         self.train_losses = []
         self.val_losses = []
 
@@ -53,10 +54,12 @@ class CNNTrainerImproved:
         for epoch in range(epochs):
             train_loss = self.train_epoch(train_loader)
             val_loss = self.validate(val_loader)
+            self.scheduler.step(val_loss)
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
             if verbose:
-                print(f"Epoka {epoch+1}: Train={train_loss:.5f}, Val={val_loss:.5f}")
+                print(
+                    f"Epoka {epoch + 1}: Train={train_loss:.5f}, Val={val_loss:.5f}, LR={self.optimizer.param_groups[0]['lr']:.6f}")
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience = 0
@@ -66,7 +69,14 @@ class CNNTrainerImproved:
                 if patience >= early_stopping_patience:
                     print("Early stopping")
                     break
-        self.model.load_state_dict(torch.load(save_path))
+
+        # Load best model - add error handling:
+        try:
+            self.model.load_state_dict(torch.load(save_path))
+        except RuntimeError as e:
+            print(f"Warning: Could not load saved model weights: {e}")
+            print("Continuing with current model weights...")
+
         return {'train_loss': self.train_losses, 'val_loss': self.val_losses}
 
     def predict(self, X: np.ndarray) -> np.ndarray:

@@ -7,20 +7,21 @@ class TimeSeriesCNNImprovedV2(nn.Module):
     def __init__(self, input_channels: int, seq_length: int):
         super(TimeSeriesCNNImprovedV2, self).__init__()
 
-        self.conv1 = nn.Conv1d(input_channels, 64, kernel_size=5, padding=2)
-        self.bn1 = nn.BatchNorm1d(64)
+        self.conv1 = nn.Conv1d(input_channels, 32, kernel_size=5, padding=2)
+        self.dropout_conv1 = nn.Dropout(0.2)
+        self.bn1 = nn.BatchNorm1d(32)
 
-        self.conv2 = nn.Conv1d(64, 128, kernel_size=5, padding=2)
-        self.bn2 = nn.BatchNorm1d(128)
+        self.conv2 = nn.Conv1d(32, 64, kernel_size=5, padding=2)
+        self.bn2 = nn.BatchNorm1d(64)
 
-        self.conv3 = nn.Conv1d(128, 256, kernel_size=5, padding=2)
-        self.bn3 = nn.BatchNorm1d(256)
+        self.conv3 = nn.Conv1d(64, 128, kernel_size=5, padding=2)
+        self.bn3 = nn.BatchNorm1d(128)
 
         self.pool = nn.MaxPool1d(kernel_size=2)
         self.global_pool = nn.AdaptiveAvgPool1d(1)
 
-        self.fc1 = nn.Linear(256, 128)
-        self.dropout1 = nn.Dropout(0.4)
+        self.fc1 = nn.Linear(128, 128)
+        self.dropout1 = nn.Dropout(0.5)
         self.fc2 = nn.Linear(128, 1)
 
     def forward(self, x):
