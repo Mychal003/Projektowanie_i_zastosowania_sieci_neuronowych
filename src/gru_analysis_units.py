@@ -115,7 +115,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 # ULEPSZONA ARCHITEKTURA GRU
 class ImprovedStockGRU(nn.Module):
-    def __init__(self, input_size=5, hidden_size=128, num_layers=3, output_size=1, dropout=0.3):
+    def __init__(self, input_size=5, hidden_size=64, num_layers=2, output_size=1, dropout=0.2):
         super(ImprovedStockGRU, self).__init__()
         
         self.hidden_size = hidden_size
