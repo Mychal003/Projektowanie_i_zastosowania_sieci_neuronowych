@@ -307,6 +307,13 @@ model_save_path = r'C:\Users\pawli\OneDrive\Pulpit\sieci\Projektowanie_i_zastoso
 
 torch.save({
     'model_state_dict': model.state_dict(),
+    'model_config': {  # ← DODAJ TO
+        'input_size': len(feature_columns),
+        'hidden_size': 128,  # Z twojej architektury
+        'num_layers': 3,     # Z twojej architektury
+        'output_size': 1,
+        'dropout': 0.3
+    },
     'optimizer_state_dict': optimizer.state_dict(),
     'price_scaler': price_scaler,
     'scaler': scaler,
@@ -320,7 +327,6 @@ torch.save({
         'test_r2': test_r2,
         'test_dir_acc': test_dir_acc
     },
-    # Dodajemy rzeczywiste predykcje do późniejszego użycia
     'train_predictions': train_predictions_denorm,
     'test_predictions': test_predictions_denorm,
     'y_train_real': y_train_denorm,
